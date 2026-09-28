@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Posture Guard</title>
+  <!-- EmailJS SDK -->
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: #1e293b;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --accent-blue: #3b82f6;
+      --text-light: #f8fafc;
+      --text-dim: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+    body { background-color: var(--bg-dark); color: var(--text-light); min-height: 100vh; padding-bottom: 70px; }
+    
+    header { padding: 16px; display: flex; justify-content: space-between; align-items: center; background: #1b2436; }
+    h1 { font-size: 1.2rem; }
+    
+    .status-badge {
+      padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;
+      background: rgba(239, 68, 68, 0.2); color: var(--accent-red); cursor: pointer; border: none;
+    }
+    .status-badge.connected { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+
+    .screen { display: none; padding: 16px; }
+    .screen.active { display: block; }
+
+    .stats-row { display: flex; gap: 12px; margin-bottom: 20px; }
+    .stat-card { flex: 1; background: var(--card-bg); padding: 12px; border-radius: 12px; text-align: center; }
+    .stat-value { font-size: 1.4rem; font-weight: bold; margin-top: 4px; }
+    .stat-value.red { color: var(--accent-red); }
+
+    .gauge-container {
+      background: var(--card-bg); border-radius: 16px; padding: 24px; text-align: center;
+      margin-bottom: 20px; position: relative;
+    }
+    .gauge-ring {
+      width: 160px; height: 160px; border-radius: 50%; border: 8px solid var(--accent-green);
+      margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; flex-direction: column;
+      transition: border-color 0.3s ease;
+    }
+    .gauge-ring.slouch { border-color: var(--accent-red); }
+    .angle-readout { font-size: 2rem; font-weight: bold; }
+
+    .btn {
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent-blue), #6366f1);
+      color: white; font-weight: bold; font-size: 1rem; cursor: pointer; margin-bottom: 16px;
+    }
+
+    .card { background: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .checklist { list-style: none; margin-top: 10px; text-align: left; }
+    .checklist li { margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+
+    input[type="email"] {
+      width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #334155;
+      background: #0f172a; color: white; margin-top: 8px; margin-bottom: 12px;
+    }
+
+    nav {
+      position: fixed; bottom: 0; width: 100%; background: #182232; display: flex;
+      justify-content: space-around; padding: 12px 0; border-top: 1px solid #334155;
+    }
+    .nav-item { color: var(--text-dim); text-decoration: none; font-size: 0.8rem; text-align: center; cursor: pointer; }
+    .nav-item.active { color: var(--accent-blue); font-weight: bold; }
+    
+    footer { font-size: 0.7rem; color: var(--text-dim); text-align: center; margin-top: 12px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Smart Posture Guard</h1>
+    <button id="btBtn" class="status-badge" onclick="connectBluetooth()">● Connect Bluetooth</button>
+  </header>
+
+  <!-- SCREEN 1: DASHBOARD -->
+  <div id="dashboardScreen" class="screen active">
+    <!-- EMAIL LOGIN CARD -->
+    <div class="card" id="emailCard">
+      <h4 style="margin-bottom: 4px;">User Account & Email Alerts</h4>
+      <p style="font-size:0.8rem; color:var(--text-dim);">Enter your email to receive live posture breach alerts.</p>
+      <input type="email" id="userEmail" placeholder="student@school.com">
+      <button class="btn" style="padding:8px; margin-bottom:0;" onclick="saveEmail()">Save Account Email</button>
+      <p id="emailStatus" style="font-size:0.75rem; color:var(--accent-green); margin-top:6px; display:none;">✓ Account active. Email alerts enabled!</p>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div style="font-size:0.8rem; color:var(--text-dim);">Active Time</div>
+        <div class="stat-value" id="activeTime">45m</div>
+      </div>
+      <div class="stat-card">
+        <div style="font-size:0.8rem; color:var(--text-dim);">Slouches Today</div>
+        <div class="stat-value red" id="slouchCount">0</div>
+      </div>
+    </div>
+
+    <div class="gauge-container">
+      <div class="gauge-ring" id="gaugeRing">
+        <div style="font-size: 2rem;" id="statusIcon">✓</div>
+        <div class="angle-readout" id="angleDisplay">0°</div>
+      </div>
+      <h3 id="statusText" style="color:var(--accent-green);">GOOD POSTURE</h3>
+      <p style="font-size:0.8rem; color:var(--text-dim); margin-top:6px;">Live sensor tilt angle</p>
+    </div>
+
+    <div class="card">
+      <label for="tiltSlider" style="font-size:0.8rem; color:var(--text-dim);">Simulate Tilt Angle (Demo Slider):</label>
+      <input type="range" id="tiltSlider" min="0" max="60" value="10" style="width:100%; margin-top:8px;" oninput="updatePostureUI(this.value)">
+    </div>
+
+    <footer>For habit training, not medical diagnosis.</footer>
+  </div>
+
+  <!-- SCREEN 2: ANALYTICS -->
+  <div id="analyticsScreen" class="screen">
+    <h2 style="margin-bottom:16px;">Session Insights</h2>
+    <div class="stats-row">
+      <div class="stat-card">
+        <div style="font-size:0.8rem; color:var(--text-dim);">Avg Angle</div>
+        <div class="stat-value">14°</div>
+      </div>
+      <div class="stat-card">
+        <div style="font-size:0.8rem; color:var(--text-dim);">Total Alerts</div>
+        <div class="stat-value red" id="totalAlertsStat">0</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4 style="margin-bottom:12px;">Slouches Per Block</h4>
+      <div style="display:flex; align-items:flex-end; height:100px; gap:8px;">
+        <div style="flex:1; background:var(--accent-blue); height:20%; border-radius:4px;"></div>
+        <div style="flex:1; background:var(--accent-blue); height:40%; border-radius:4px;"></div>
+        <div style="flex:1; background:var(--accent-red); height:80%; border-radius:4px;"></div>
+        <div style="flex:1; background:var(--accent-blue); height:30%; border-radius:4px;"></div>
+      </div>
+      <p style="font-size:0.8rem; color:var(--text-dim); margin-top:12px;">Insight: Fatigue spikes usually occur after 30 mins of sitting.</p>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: AI COACH -->
+  <div id="aiCoachScreen" class="screen">
+    <h2 style="margin-bottom:16px;">AI Stretch Coach</h2>
+    <button class="btn" onclick="generateAIRecovery()">✨ Generate AI Recovery Plan</button>
+
+    <div class="card" id="aiOutputCard">
+      <h4>AI Recommendation</h4>
+      <p id="aiText" style="font-size:0.9rem; margin-top:8px; color:var(--text-dim);">
+        Tap the button above to generate personalized stretches based on your slouch count.
+      </p>
+      <ul class="checklist" id="aiChecklist" style="display:none;">
+        <li><input type="checkbox"> 1. Doorway Chest Stretch (30s)</li>
+        <li><input type="checkbox"> 2. Chin Tucks (30s)</li>
+      </ul>
+    </div>
+
+    <div class="card" style="border-left: 4px solid var(--accent-blue);">
+      <h4>Data Privacy</h4>
+      <p style="font-size:0.8rem; color:var(--text-dim); margin-top:4px;">
+        🔒 All tilt data is processed locally on your device and anonymized.
+      </p>
+    </div>
+  </div>
+
+  <!-- NAVIGATION -->
+  <nav>
+    <div class="nav-item active" onclick="switchTab('dashboardScreen', this)">Dashboard</div>
+    <div class="nav-item" onclick="switchTab('analyticsScreen', this)">Analytics</div>
+    <div class="nav-item" onclick="switchTab('aiCoachScreen', this)">AI Coach</div>
+  </nav>
+
+  <script>
+    // INITIALIZE EMAILJS WITH YOUR PUBLIC KEY
+    (function(){
+      emailjs.init("YOUR_PUBLIC_KEY"); // Replace with your EmailJS Public Key
+    })();
+
+    let slouches = 0;
+    let isSlouching = false;
+    let registeredEmail = "";
+    let lastEmailSentTime = 0;
+
+    function saveEmail() {
+      const emailInput = document.getElementById('userEmail').value;
+      if(emailInput.includes('@')) {
+        registeredEmail = emailInput;
+        document.getElementById('emailStatus').style.display = 'block';
+      } else {
+        alert('Please enter a valid email address.');
+      }
+    }
+
+    function sendEmailAlert(angle) {
+      const now = Date.now();
+      // Rate limit: sends an email at most once every 2 minutes so your inbox isn't flooded
+      if (registeredEmail && (now - lastEmailSentTime > 120000)) {
+        lastEmailSentTime = now;
+        
+        emailjs.send("YOUR_SERVICE_ID", "YOUR_TEMPLATE_ID", {
+          to_email: registeredEmail,
+          message: `Alert: Poor posture detected! Your forward tilt angle reached ${angle}°. Please sit up straight.`
+        }).then(() => {
+          console.log("Email alert sent successfully!");
+        }).catch((err) => {
+          console.error("Email failed to send:", err);
+        });
+      }
+    }
+
+    function updatePostureUI(angle) {
+      let angleNum = parseInt(angle);
+      document.getElementById('angleDisplay').innerText = angleNum + '°';
+      
+      const ring = document.getElementById('gaugeRing');
+      const statusText = document.getElementById('statusText');
+      const statusIcon = document.getElementById('statusIcon');
+
+      // Slouch Threshold set at > 25 degrees
+      if (angleNum > 25) {
+        ring.classList.add('slouch');
+        statusText.innerText = "SLOUCHING DETECTED";
+        statusText.style.color = "var(--accent-red)";
+        statusIcon.innerText = "✕";
+
+        if (!isSlouching) {
+          isSlouching = true;
+          slouches++;
+          document.getElementById('slouchCount').innerText = slouches;
+          document.getElementById('totalAlertsStat').innerText = slouches;
+          
+          // Trigger Email Alert
+          sendEmailAlert(angleNum);
+        }
+      } else {
+        ring.classList.remove('slouch');
+        statusText.innerText = "GOOD POSTURE";
+        statusText.style.color = "var(--accent-green)";
+        statusIcon.innerText = "✓";
+        isSlouching = false;
+      }
+    }
+
+    function switchTab(screenId, element) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+      element.classList.add('active');
+    }
+
+    function generateAIRecovery() {
+      const aiText = document.getElementById('aiText');
+      const checklist = document.getElementById('aiChecklist');
+      
+      aiText.innerText = `You slouched ${slouches} times during this study block. Try these 30-second targeted micro-stretches to reset your spine:`;
+      checklist.style.display = "block";
+    }
+
+    // Web Bluetooth API Code
+    async function connectBluetooth() {
+      const UART_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+      const UART_TX_CHARACTERISTIC = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ namePrefix: 'BBC micro:bit' }],
+          optionalServices: [UART_SERVICE_UUID]
+        });
+
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(UART_SERVICE_UUID);
+        const characteristic = await service.getCharacteristic(UART_TX_CHARACTERISTIC);
+
+        await characteristic.startNotifications();
+        characteristic.addEventListener('characteristicvaluechanged', (e) => {
+          let raw = new TextDecoder().decode(e.target.value).trim();
+          let angle = parseInt(raw);
+          if (!isNaN(angle)) {
+            document.getElementById('tiltSlider').value = angle;
+            updatePostureUI(angle);
+          }
+        });
+
+        const btn = document.getElementById('btBtn');
+        btn.innerText = "● Connected";
+        btn.classList.add('connected');
+      } catch (err) {
+        alert("Bluetooth Connection Failed. Make sure Bluetooth is ON or use the Demo Slider!");
+      }
+    }
+  </script>
+</body>
+</html>
