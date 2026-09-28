@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Posture Guard</title>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--text:#f8fafc;--dim:#94a3b8}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif}
+body{background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:70px}
+header{padding:16px;display:flex;justify-content:space-between;align-items:center;background:#1b2436}
+h1{font-size:1.2rem}
+.badge{padding:6px 12px;border-radius:20px;font-size:.8rem;font-weight:bold;background:rgba(239,68,68,.2);color:var(--red);border:none;cursor:pointer}
+.badge.on{background:rgba(34,197,94,.2);color:var(--green)}
+.screen{display:none;padding:16px}.screen.active{display:block}
+.row{display:flex;gap:12px;margin-bottom:16px}
+.stat{flex:1;background:var(--card);padding:12px;border-radius:12px;text-align:center}
+.stat small{font-size:.8rem;color:var(--dim)}
+.stat b{display:block;font-size:1.4rem;margin-top:4px}
+.red{color:var(--red)}
+.gauge{background:var(--card);border-radius:16px;padding:24px;text-align:center;margin-bottom:16px}
+.ring{width:160px;height:160px;border-radius:50%;border:8px solid var(--green);margin:0 auto 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:border-color .3s}
+.ring.bad{border-color:var(--red)}
+.big{font-size:2rem;font-weight:bold}
+.btn{width:100%;padding:12px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--blue),#6366f1);color:#fff;font-weight:bold;font-size:1rem;cursor:pointer;margin-bottom:12px}
+.btn.alt{background:#334155}
+.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:16px}
+.card p,.card label{font-size:.8rem;color:var(--dim)}
+input[type=email]{width:100%;padding:12px;border-radius:8px;border:1px solid #334155;background:var(--bg);color:#fff;margin:8px 0 12px}
+input[type=range]{width:100%;margin:6px 0 12px}
+ul{list-style:none;margin-top:10px}li{margin-bottom:8px;font-size:.9rem}
+.bars{display:flex;align-items:flex-end;height:100px;gap:8px}
+.bars div{flex:1;background:var(--blue);border-radius:4px;min-height:4px}
+nav{position:fixed;bottom:0;width:100%;background:#182232;display:flex;justify-content:space-around;padding:12px 0;border-top:1px solid #334155}
+nav div{color:var(--dim);font-size:.8rem;cursor:pointer}nav .active{color:var(--blue);font-weight:bold}
+footer{font-size:.7rem;color:var(--dim);text-align:center}
+</style>
+</head>
+<body>
+<header><h1>Smart Posture Guard</h1><button id="btBtn" class="badge" onclick="connectBluetooth()">● Connect Bluetooth</button></header>
+
+<div id="dash" class="screen active">
+  <div class="card">
+    <h4>Email Alerts</h4>
+    <p>Get an email when you slouch (max one every 2 minutes).</p>
+    <input type="email" id="userEmail" placeholder="you@school.com">
+    <button class="btn" onclick="saveEmail()">Save Email</button>
+    <p id="emailStatus" style="color:var(--green);display:none">✓ Email alerts enabled</p>
+  </div>
+  <div class="row">
+    <div class="stat"><small>Session Time</small><b id="activeTime">0:00</b></div>
+    <div class="stat"><small>Slouches</small><b class="red" id="slouchCount">0</b></div>
+  </div>
+  <div class="gauge">
+    <div class="ring" id="ring"><div id="icon" style="font-size:2rem">✓</div><div class="big" id="angle">0°</div></div>
+    <h3 id="status" style="color:var(--green)">GOOD POSTURE</h3>
+    <p style="font-size:.8rem;color:var(--dim);margin-top:6px">Lean away from your upright position</p>
+  </div>
+  <button class="btn alt" onclick="calibrate()">📍 Set my upright posture (sit straight, then tap)</button>
+  <div class="card">
+    <label>Slouch threshold: <span id="thrVal">20</span>°</label>
+    <input type="range" id="thr" min="10" max="45" value="20" oninput="thrVal.innerText=this.value">
+    <label>Alert after: <span id="holdVal">3</span>s of slouching</label>
+    <input type="range" id="hold" min="1" max="10" value="3" oninput="holdVal.innerText=this.value">
+    <label>Demo slider (no sensor needed)</label>
+    <input type="range" id="tilt" min="0" max="60" value="10" oninput="onReading(+this.value)">
+  </div>
+  <footer>For habit training, not medical diagnosis.</footer>
+</div>
+
+<div id="stats" class="screen">
+  <h2 style="margin-bottom:16px">Session Insights</h2>
+  <div class="row">
+    <div class="stat"><small>Avg Lean</small><b id="avgDev">0°</b></div>
+    <div class="stat"><small>Total Alerts</small><b class="red" id="totalAlerts">0</b></div>
+  </div>
+  <div class="card">
+    <h4 style="margin-bottom:12px">Slouches per 5 minutes</h4>
+    <div class="bars" id="bars"></div>
+    <p id="insight" style="margin-top:12px">Connect the sensor to start collecting data.</p>
+  </div>
+</div>
+
+<div id="coach" class="screen">
+  <h2 style="margin-bottom:16px">Stretch Coach</h2>
+  <button class="btn" onclick="plan()">✨ Build my recovery plan</button>
+  <div class="card">
+    <h4>Recommendation</h4>
+    <p id="planText" style="margin-top:8px">Tap the button to get stretches based on your slouch count.</p>
+    <ul id="planList"></ul>
+  </div>
+  <div class="card" style="border-left:4px solid var(--blue)">
+    <h4>Data Privacy</h4>
+    <p style="margin-top:4px">🔒 Tilt data stays in your browser. Only the alert email is sent, via EmailJS.</p>
+  </div>
+</div>
+
+<nav>
+  <div class="active" onclick="tab('dash',this)">Dashboard</div>
+  <div onclick="tab('stats',this)">Analytics</div>
+  <div onclick="tab('coach',this)">Coach</div>
+</nav>
+
+<script>
+// ---- EmailJS setup: replace these 3 values ----
+const CFG = {KEY:"YOUR_PUBLIC_KEY", SERVICE:"YOUR_SERVICE_ID", TEMPLATE:"YOUR_TEMPLATE_ID"};
+const mailReady = () => !CFG.KEY.startsWith("YOUR_");
+if (window.emailjs && mailReady()) emailjs.init(CFG.KEY);
+
+const $ = id => document.getElementById(id);
+let baseline = 0, samples = [], slouches = 0, armed = true, since = null;
+let email = "", lastMail = 0, start = null, devSum = 0, devN = 0, blocks = [0], ac;
+
+function saveEmail(){
+  const v = $('userEmail').value.trim();
+  if (v.includes('@')) { email = v; $('emailStatus').style.display = 'block'; }
+  else alert('Please enter a valid email address.');
+}
+function avg(a){ return a.reduce((x,y)=>x+y,0) / a.length; }
+
+function calibrate(){
+  if (!samples.length) return alert('No readings yet. Connect the sensor or move the demo slider first.');
+  baseline = avg(samples);
+  since = null; armed = true;
+}
+
+function onReading(a){
+  if (!start) start = Date.now();
+  samples.push(a); if (samples.length > 5) samples.shift();
+  const dev = Math.abs(avg(samples) - baseline);   // works whichever way the sensor tilts
+  devSum += dev; devN++;
+  const thr = +$('thr').value, hold = +$('hold').value * 1000;
+  const bad = dev > thr;
+  $('angle').innerText = Math.round(dev) + '°';
+  $('ring').classList.toggle('bad', bad);
+  $('status').innerText = bad ? 'SLOUCHING' : 'GOOD POSTURE';
+  $('status').style.color = bad ? 'var(--red)' : 'var(--green)';
+  $('icon').innerText = bad ? '✕' : '✓';
+  if (bad) {
+    if (since === null) since = Date.now();
+    if (armed && Date.now() - since >= hold) { armed = false; slouch(dev); }
+  } else {
+    since = null;
+    if (dev < thr - 5) armed = true;   // hysteresis: avoids double counting near the line
+  }
+}
+
+function slouch(dev){
+  slouches++;
+  const b = Math.floor((Date.now() - start) / 300000);
+  while (blocks.length <= b) blocks.push(0);
+  blocks[b]++;
+  $('slouchCount').innerText = slouches;
+  $('totalAlerts').innerText = slouches;
+  try { ac = ac || new AudioContext(); const o = ac.createOscillator(); o.connect(ac.destination); o.frequency.value = 880; o.start(); o.stop(ac.currentTime + .25); } catch(e){}
+  if (navigator.vibrate) navigator.vibrate(300);
+  sendEmail(Math.round(dev));
+  renderStats();
+}
+
+function sendEmail(dev){
+  const now = Date.now();
+  if (!email || !mailReady() || now - lastMail < 120000) return;
+  lastMail = now;
+  emailjs.send(CFG.SERVICE, CFG.TEMPLATE, {
+    to_email: email,
+    message: `Posture alert: you leaned ${dev}° from your upright position. Sit up straight!`
+  }).catch(err => console.error('Email failed:', err));
+}
+
+function renderStats(){
+  $('avgDev').innerText = (devN ? Math.round(devSum / devN) : 0) + '°';
+  const shown = blocks.slice(-6), max = Math.max(1, ...shown);
+  $('bars').innerHTML = shown.map(n => `<div style="height:${Math.max(4, n / max * 100)}%;${n === max && n > 0 ? 'background:var(--red)' : ''}" title="${n}"></div>`).join('');
+  $('insight').innerText = slouches
+    ? `Worst block: ${max} slouches. Try a stretch break every 30 minutes.`
+    : 'No slouches yet. Nice work!';
+}
+
+setInterval(() => {
+  if (!start) return;
+  const s = Math.floor((Date.now() - start) / 1000);
+  $('activeTime').innerText = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  renderStats();
+}, 1000);
+
+function plan(){
+  const all = ['Doorway chest stretch (30s)', 'Chin tucks (10 reps)', 'Shoulder blade squeezes (10 reps)', 'Upper trap neck stretch (30s each side)', 'Stand up and walk for 2 minutes'];
+  const n = slouches === 0 ? 1 : slouches < 4 ? 3 : 5;
+  $('planText').innerText = slouches === 0
+    ? 'Great posture so far! One quick reset to keep it up:'
+    : `You slouched ${slouches} time${slouches > 1 ? 's' : ''} this session. Try these micro-stretches:`;
+  $('planList').innerHTML = all.slice(0, n).map(x => `<li><input type="checkbox"> ${x}</li>`).join('');
+}
+
+function tab(id, el){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav div').forEach(n => n.classList.remove('active'));
+  $(id).classList.add('active'); el.classList.add('active');
+}
+
+// ---- Bluetooth (micro:bit UART) ----
+async function connectBluetooth(){
+  if (!navigator.bluetooth) return alert('Web Bluetooth needs Chrome or Edge (Android, Windows, Mac, Chromebook). It does not work on iPhone/Safari. Use the demo slider instead.');
+  const SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e", TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+  const btn = $('btBtn');
+  try {
+    const device = await navigator.bluetooth.requestDevice({filters:[{namePrefix:'BBC micro:bit'}], optionalServices:[SERVICE]});
+    device.addEventListener('gattserverdisconnected', () => { btn.innerText = '● Connect Bluetooth'; btn.classList.remove('on'); });
+    const server = await device.gatt.connect();
+    const ch = await (await server.getPrimaryService(SERVICE)).getCharacteristic(TX);
+    await ch.startNotifications();
+    let buf = '';
+    ch.addEventListener('characteristicvaluechanged', e => {
+      buf += new TextDecoder().decode(e.target.value);   // messages can arrive split up
+      const parts = buf.split('\n'); buf = parts.pop();
+      parts.forEach(p => { const n = parseFloat(p); if (!isNaN(n)) { $('tilt').value = n; onReading(n); } });
+    });
+    btn.innerText = '● Connected'; btn.classList.add('on');
+  } catch (err) {
+    if (err.name !== 'NotFoundError') alert('Bluetooth connection failed: ' + err.message + '\nCheck the micro:bit has "No Pairing Required" turned on, or use the demo slider.');
+  }
+}
+renderStats();
+</script>
+</body>
+</html>
