@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Posture Guard</title>
+    <!-- EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 10px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2rem;
+            color: var(--accent-blue);
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        button {
+            background-color: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:disabled {
+            background-color: #64748b;
+            cursor: not-allowed;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: bold;
+            background-color: #334155;
+        }
+
+        .status-connected { background-color: var(--accent-green); }
+        .status-disconnected { background-color: var(--accent-red); }
+
+        .gauge-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .tilt-display {
+            font-size: 4rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .posture-status {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .good-posture { color: var(--accent-green); }
+        .bad-posture { color: var(--accent-red); }
+
+        .email-section input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 8px;
+            margin-bottom: 12px;
+            border-radius: 6px;
+            border: 1px solid #475569;
+            background-color: #0f172a;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        .coach-section {
+            border-left: 4px solid var(--accent-blue);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Smart Posture Guard</h1>
+        <p>Real-time telemetry and posture tracking</p>
+    </header>
+
+    <!-- Bluetooth & Calibration -->
+    <div class="card control-panel">
+        <div>
+            <button id="connectBtn">Connect micro:bit</button>
+            <button id="calibrateBtn" disabled>Calibrate Zero Tilt</button>
+        </div>
+        <span id="connectionStatus" class="status-badge status-disconnected">Disconnected</span>
+    </div>
+
+    <!-- Live Telemetry -->
+    <div class="card gauge-container">
+        <div>Current Pitch Angle</div>
+        <div id="tiltAngle" class="tilt-display">0°</div>
+        <div id="postureState" class="posture-status good-posture">Good Posture</div>
+    </div>
+
+    <!-- Email Notification Configuration -->
+    <div class="card email-section">
+        <h3>Alert Settings</h3>
+        <label for="userEmail">Alert Recipient Email:</label>
+        <input type="email" id="userEmail" placeholder="student@school.org" value="onkikiland@gmail.com">
+        <button id="saveEmailBtn">Save Email Settings</button>
+        <p id="emailStatusMsg" style="font-size: 0.85rem; color: #94a3b8; margin-top: 8px;"></p>
+    </div>
+
+    <!-- AI Stretch Coach -->
+    <div class="card coach-section">
+        <h3>Posture Coach</h3>
+        <p id="coachAdvice">Connect your micro:bit to receive real-time posture recommendations.</p>
+    </div>
+</div>
+
+<script>
+    // --- Exact EmailJS Credentials from Screenshots ---
+    const EMAILJS_PUBLIC_KEY = "YASS5Ufdli-orh22u"; 
+    const EMAILJS_SERVICE_ID = "service_h1ulknb";
+    const EMAILJS_TEMPLATE_ID = "template_zx4qv0y";
+
+    // Initialize EmailJS SDK
+    emailjs.init(EMAILJS_PUBLIC_KEY);
+
+    // --- State Variables ---
+    let bluetoothDevice;
+    let uartCharacteristic;
+    let baselinePitch = 0;
+    let currentPitch = 0;
+    let slouchStartTime = null;
+    let emailSentForCurrentSlouch = false;
+    const SLOUCH_THRESHOLD = 15; // 15 degrees forward tilt
+    const SLOUCH_TIME_LIMIT_MS = 5000; // 5 seconds of continuous slouching triggers email
+
+    // --- DOM Elements ---
+    const connectBtn = document.getElementById('connectBtn');
+    const calibrateBtn = document.getElementById('calibrateBtn');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const tiltAngleDisplay = document.getElementById('tiltAngle');
+    const postureStateDisplay = document.getElementById('postureState');
+    const userEmailInput = document.getElementById('userEmail');
+    const saveEmailBtn = document.getElementById('saveEmailBtn');
+    const emailStatusMsg = document.getElementById('emailStatusMsg');
+    const coachAdvice = document.getElementById('coachAdvice');
+
+    // Load saved email or default to yours
+    if (localStorage.getItem('postureGuardEmail')) {
+        userEmailInput.value = localStorage.getItem('postureGuardEmail');
+    } else {
+        localStorage.setItem('postureGuardEmail', 'onkikiland@gmail.com');
+    }
+
+    saveEmailBtn.addEventListener('click', () => {
+        const email = userEmailInput.value.trim();
+        if (email) {
+            localStorage.setItem('postureGuardEmail', email);
+            emailStatusMsg.textContent = "Email saved successfully!";
+            emailStatusMsg.style.color = "#22c55e";
+        } else {
+            emailStatusMsg.textContent = "Please enter a valid email address.";
+            emailStatusMsg.style.color = "#ef4444";
+        }
+    });
+
+    // --- Web Bluetooth Micro:bit Connection ---
+    const UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const UART_TX_CHARACTERISTIC_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+    connectBtn.addEventListener('click', async () => {
+        if (!navigator.bluetooth) {
+            alert("Web Bluetooth is not supported on this browser/device.");
+            return;
+        }
+
+        try {
+            connectionStatus.textContent = "Connecting...";
+            bluetoothDevice = await navigator.bluetooth.requestDevice({
+                filters: [{ namePrefix: 'BBC micro:bit' }],
+                optionalServices: [UART_SERVICE_UUID]
+            });
+
+            const server = await bluetoothDevice.gatt.connect();
+            const service = await server.getPrimaryService(UART_SERVICE_UUID);
+            uartCharacteristic = await service.getCharacteristic(UART_TX_CHARACTERISTIC_UUID);
+
+            await uartCharacteristic.startNotifications();
+            uartCharacteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
+
+            connectionStatus.textContent = "Connected";
+            connectionStatus.className = "status-badge status-connected";
+            connectBtn.disabled = true;
+            calibrateBtn.disabled = false;
+
+            bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+        } catch (error) {
+            console.error("Bluetooth Connection Error:", error);
+            connectionStatus.textContent = "Disconnected";
+            connectionStatus.className = "status-badge status-disconnected";
+        }
+    });
+
+    function onDisconnected() {
+        connectionStatus.textContent = "Disconnected";
+        connectionStatus.className = "status-badge status-disconnected";
+        connectBtn.disabled = false;
+        calibrateBtn.disabled = true;
+    }
+
+    // --- Calibration ---
+    calibrateBtn.addEventListener('click', () => {
+        baselinePitch = currentPitch;
