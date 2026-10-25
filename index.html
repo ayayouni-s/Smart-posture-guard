@@ -237,33 +237,4 @@
                 optionalServices: [UART_SERVICE_UUID]
             });
 
-            const server = await bluetoothDevice.gatt.connect();
-            const service = await server.getPrimaryService(UART_SERVICE_UUID);
-            uartCharacteristic = await service.getCharacteristic(UART_TX_CHARACTERISTIC_UUID);
-
-            await uartCharacteristic.startNotifications();
-            uartCharacteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
-
-            connectionStatus.textContent = "Connected";
-            connectionStatus.className = "status-badge status-connected";
-            connectBtn.disabled = true;
-            calibrateBtn.disabled = false;
-
-            bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
-        } catch (error) {
-            console.error("Bluetooth Connection Error:", error);
-            connectionStatus.textContent = "Disconnected";
-            connectionStatus.className = "status-badge status-disconnected";
-        }
-    });
-
-    function onDisconnected() {
-        connectionStatus.textContent = "Disconnected";
-        connectionStatus.className = "status-badge status-disconnected";
-        connectBtn.disabled = false;
-        calibrateBtn.disabled = true;
-    }
-
-    // --- Calibration ---
-    calibrateBtn.addEventListener('click', () => {
-        baselinePitch = currentPitch;
+            const server = await 
