@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Posture Guard Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 10px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2.2rem;
+            color: var(--accent-blue);
+        }
+
+        p.subtitle {
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        button {
+            background-color: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            background-color: #64748b;
+            cursor: not-allowed;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: bold;
+            background-color: #334155;
+        }
+
+        .status-connected { background-color: var(--accent-green); }
+        .status-disconnected { background-color: var(--accent-red); }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .metric-card {
+            background-color: #0f172a;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid #334155;
+        }
+
+        .metric-value {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .posture-status {
+            font-size: 1.4rem;
+            font-weight: bold;
+        }
+
+        .good-posture { color: var(--accent-green); }
+        .bad-posture { color: var(--accent-red); }
+
+        .exercise-section h3 {
+            color: var(--accent-purple);
+            margin-top: 0;
+        }
+
+        .exercise-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .exercise-card {
+            background-color: #0f172a;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-purple);
+        }
+
+        .exercise-title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+            color: var(--text-color);
+        }
+
+        .exercise-desc {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            line-height: 1.4;
+        }
+
+        .reset-btn {
+            background-color: #475569;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Smart Posture Guard</h1>
+        <p class="subtitle">Micro:bit V2 Live Telemetry & Anti-Slouch Tracker</p>
+    </header>
+
+    <!-- Bluetooth & Calibration -->
+    <div class="card control-panel">
+        <div>
+            <button id="connectBtn">Connect micro:bit</button>
+            <button id="calibrateBtn" disabled>Calibrate Zero Pitch</button>
+        </div>
+        <span id="connectionStatus" class="status-badge status-disconnected">Disconnected</span>
+    </div>
+
+    <!-- Live Metrics Dashboard -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 style="margin: 0; font-size: 1.2rem;">Live Metrics</h2>
+            <button id="resetCounterBtn" class="reset-btn">Reset Slouch Count</button>
+        </div>
+        
+        <div class="metrics-grid">
+            <!-- Current Slouch Angle -->
+            <div class="metric-card">
+                <div style="color: #94a3b8;">Live Forward Pitch</div>
+                <div id="tiltAngle" class="metric-value">0°</div>
+                <div id="postureState" class="posture-status good-posture">Good Posture</div>
+            </div>
+
+            <!-- Total Slouch Counter -->
+            <div class="metric-card">
+                <div style="color: #94a3b8;">Slouch Incidents</div>
+                <div id="slouchCount" class="metric-value" style="color: var(--accent-purple);">0</div>
+                <div style="font-size: 0.85rem; color: #64748b;">(Slouched > 5 seconds)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Anti-Slouch Exercise & Stretch Recommendations -->
+    <div class="card exercise-section">
+        <h3>🧘 Recommended Anti-Slouch Exercises</h3>
+        <p style="color: #94a3b8; font-size: 0.95rem; margin-bottom: 15px;">
+            If you catch yourself slouching frequently, take a 2-minute break and try these quick posture correction exercises:
+        </p>
+
+        <div class="exercise-list">
+            <div class="exercise-card">
+                <div class="exercise-title">1. Chin Tucks</div>
+                <div class="exercise-desc">
+                    Sit up straight. Pull your head directly backward as if making a double chin. Hold for 5 seconds, release. Repeat 10 times to strengthen neck muscles.
+                </div>
+            </div>
+
+            <div class="exercise-card">
+                <div class="exercise-title">2. Doorway Chest Stretch</div>
+                <div class="exercise-desc">
+                    Place your elbows on a doorframe at 90 degrees. Lean forward gently until you feel a stretch in your chest and shoulders. Hold for 20–30 seconds.
+                </div>
+            </div>
+
+            <div class="exercise-card">
+                <div class="exercise-title">3. Scapular Squeezes</div>
+                <div class="exercise-desc">
+                    Pull your shoulder blades back and down together as if squeezing a pencil between them. Hold for 5 seconds. Repeat 10–12 times.
+                </div>
+            </div>
+
+            <div class="exercise-card">
+                <div class="exercise-title">4. Wall Angels</div>
+                <div class="exercise-desc">
+                    Stand with your back, head, and arms flat against a wall. Slowly raise and lower your arms like a snow angel while keeping contact with the wall.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- State Variables ---
+    let bluetoothDevice;
+    let uartCharacteristic;
+    let baselinePitch = 0;
+    let currentPitch = 0;
+    let slouchCount = 0;
+    let slouchStartTime = null;
+    let countedCurrentSlouch = false;
+
+    const SLOUCH_THRESHOLD = 15; // 15 degrees threshold
+    const SLOUCH_TIME_LIMIT_MS = 5000; // 5 seconds continuous slouch triggers count increment
+
+    // --- DOM Elements ---
+    const connectBtn = document.getElementById('connectBtn');
+    const calibrateBtn = document.getElementById('calibrateBtn');
+    const resetCounterBtn = document.getElementById('resetCounterBtn');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const tiltAngleDisplay = document.getElementById('tiltAngle');
+    const postureStateDisplay = document.getElementById('postureState');
+    const slouchCountDisplay = document.getElementById('slouchCount');
+
+    // Reset Counter Event
+    resetCounterBtn.addEventListener('click', () => {
+        slouchCount = 0;
+        slouchCountDisplay.textContent = slouchCount;
+    });
+
+    // --- Web Bluetooth Micro:bit Connection ---
+    const UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const UART_TX_CHARACTERISTIC_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+    connectBtn.addEventListener('click', async () => {
+        if (!navigator.bluetooth) {
+            alert("Web Bluetooth is not supported on this browser/device. Try using Chrome or Edge.");
+            return;
+        }
+
+        try {
+            connectionStatus.textContent = "Connecting...";
+            bluetoothDevice = await navigator.bluetooth.requestDevice({
+                filters: [{ namePrefix: 'BBC micro:bit' }],
+                optionalServices: [UART_SERVICE_UUID]
+            });
+
+            const server = await bluetoothDevice.gatt.connect();
+            const service = await server.getPrimaryService(UART_SERVICE_UUID);
+            uartCharacteristic = await service.getCharacteristic(UART_TX_CHARACTERISTIC_UUID);
+
+            await uartCharacteristic.startNotifications();
+            uartCharacteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
+
+            connectionStatus.textContent = "Connected";
+            connectionStatus.className = "status-badge status-connected";
+            connectBtn.disabled = true;
+            calibrateBtn.disabled = false;
+
+            bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+        } catch (error) {
+            console.error("Bluetooth Connection Error:", error);
+            connectionStatus.textContent = "Disconnected";
+            connectionStatus.className = "status-badge status-disconnected";
+        }
+    });
+
+    function onDisconnected() {
+        connectionStatus.textContent = "Disconnected";
+        connectionStatus.className = "status-badge status-disconnected";
+        connectBtn.disabled = false;
+        calibrateBtn.disabled = true;
+    }
+
+    // Zero-calibration button
+    calibrateBtn.addEventListener('click', () => {
+        baselinePitch = currentPitch;
+        alert(`Calibrated! Current position set as zero reference.`);
+    });
+
+    // Handle incoming telemetry stream from micro:bit
+    function handleDataReceived(event) {
+        const decoder = new TextDecoder('utf-8');
+        const rawString = decoder.decode(event.target.value).trim();
+        const rawPitch = parseFloat(rawString);
+
+        if (!isNaN(rawPitch)) {
+            // Calculate pitch relative to calibrated zero angle
+            currentPitch = rawPitch - baselinePitch;
+            updateDashboard(currentPitch);
+        }
+    }
+
+    function updateDashboard(pitch) {
+        const roundedPitch = Math.round(pitch);
+        tiltAngleDisplay.textContent = `${roundedPitch}°`;
+
+        // Check posture threshold
+        if (pitch > SLOUCH_THRESHOLD) {
+            postureStateDisplay.textContent = "Slouching Detected!";
+            postureStateDisplay.className = "posture-status bad-posture";
+
+            if (!slouchStartTime) {
+                slouchStartTime = Date.now();
+            } else if (Date.now() - slouchStartTime >= SLOUCH_TIME_LIMIT_MS && !countedCurrentSlouch) {
+                slouchCount++;
+                slouchCountDisplay.textContent = slouchCount;
+                countedCurrentSlouch = true; // Count once per slouch session
+            }
+        } else {
+            postureStateDisplay.textContent = "Good Posture";
+            postureStateDisplay.className = "posture-status good-posture";
+            
+            // Reset slouch tracker when posture returns to normal
+            slouchStartTime = null;
+            countedCurrentSlouch = false;
+        }
+    }
+</script>
+
+</body>
+</html>
